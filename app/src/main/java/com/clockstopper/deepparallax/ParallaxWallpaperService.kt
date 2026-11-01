@@ -74,14 +74,38 @@ class ParallaxWallpaperService : WallpaperService() {
                 loadedUri = if (bitmap != null) imageUri else null
             }
 
-            // Depth-map selection remains stored in the app, but the renderer is
-            // deliberately using the proven direct-bitmap path until it is retested.
             val depthUri = prefs.getString("depth_uri", null)
-            if (depthUri != loadedDepthUri) {
+            if (depthUri != loadedDepthUri || (depthUri != null && depthBitmap == null)) {
                 depthBitmap?.recycle()
-                depthBitmap = null
-                loadedDepthUri = depthUri
+                depthBitmap = decode(depthUri)
+                loadedDepthUri = if (depthBitmap != null) depthUri else null
             }
+        }
+
+
+        private fun buildDepthMesh(
+            image: Bitmap,
+            depth: Bitmap,
+            dst: RectF,
+            dx: Float,
+            dy: Float
+        ): FloatArray {
+            val vertices = FloatArray((meshColumns + 1) * (meshRows + 1) * 2)
+            var out = 0
+            for (row in 0..meshRows) {
+                val v = row.toFloat() / meshRows
+                val sy = (v * (depth.height - 1)).toInt().coerceIn(0, depth.height - 1)
+                for (col in 0..meshColumns) {
+                    val u = col.toFloat() / meshColumns
+                    val sx = (u * (depth.width - 1)).toInt().coerceIn(0, depth.width - 1)
+                    val pixel = depth.getPixel(sx, sy)
+                    val gray = (Color.red(pixel) * 0.299f + Color.green(pixel) * 0.587f + Color.blue(pixel) * 0.114f) / 255f
+                    val offset = (gray - 0.5f) * 2f
+                    vertices[out++] = dst.left + dst.width() * u + dx * offset * 1.8f
+                    vertices[out++] = dst.top + dst.height() * v + dy * offset * 1.8f
+                }
+            }
+            return vertices
         }
 
         override fun onSensorChanged(event: SensorEvent) {
@@ -115,7 +139,17 @@ class ParallaxWallpaperService : WallpaperService() {
                         val dy = -smoothY * range
                         val dst = RectF((w-drawW)/2f, (h-drawH)/2f, (w+drawW)/2f, (h+drawH)/2f)
                         val shifted = RectF(dst.left + dx, dst.top + dy, dst.right + dx, dst.bottom + dy)
-                        canvas.drawBitmap(image, null, shifted, paint)
+                        val depth = depthBitmap
+                        if (depth != null && !depth.isRecycled) {
+                            try {
+                                val vertices = buildDepthMesh(image, depth, shifted, dx, dy)
+                                canvas.drawBitmapMesh(image, meshColumns, meshRows, vertices, 0, null, 0, paint)
+                            } catch (_: Exception) {
+                                canvas.drawBitmap(image, null, shifted, paint)
+                            }
+                        } else {
+                            canvas.drawBitmap(image, null, shifted, paint)
+                        }
                         paint.color = 0x35FFFFFF
                         paint.style = Paint.Style.STROKE
                         paint.strokeWidth = 2f
