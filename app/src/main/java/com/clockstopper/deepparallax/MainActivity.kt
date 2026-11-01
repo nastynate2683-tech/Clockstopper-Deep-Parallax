@@ -165,8 +165,11 @@ class MainActivity : Activity() {
         Button(this).apply {
             text = label
             isAllCaps = false
-            textSize = 13f
-            letterSpacing = 0.04f
+            textSize = 11f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            includeFontPadding = false
+            letterSpacing = 0.01f
             typeface = Typeface.create("sans-serif", Typeface.BOLD)
             setTextColor(if (secondary) softRed else white)
             background = shape(
@@ -176,7 +179,7 @@ class MainActivity : Activity() {
                 13
             )
             elevation = dp(5).toFloat()
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setPadding(dp(6), dp(8), dp(6), dp(8))
             setOnClickListener { action() }
         }
 
