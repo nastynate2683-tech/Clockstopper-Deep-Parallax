@@ -34,8 +34,8 @@ class ParallaxWallpaperService : WallpaperService() {
         private var depthBitmap: Bitmap? = null
         private var loadedUri: String? = null
         private var loadedDepthUri: String? = null
-        private val meshColumns = 32
-        private val meshRows = 48
+        private val meshColumns = 64
+        private val meshRows = 96
 
         override fun onVisibilityChanged(visible: Boolean) {
             visibleNow = visible
@@ -98,8 +98,8 @@ class ParallaxWallpaperService : WallpaperService() {
                     val pixel = depth.getPixel(sx, sy)
                     val gray = (Color.red(pixel) * 0.299f + Color.green(pixel) * 0.587f + Color.blue(pixel) * 0.114f) / 255f
                     val offset = (gray - 0.5f) * 2f
-                    vertices[out++] = dst.left + dst.width() * u + dx * offset * 1.8f
-                    vertices[out++] = dst.top + dst.height() * v + dy * offset * 1.8f
+                    vertices[out++] = dst.left + dst.width() * u + dx * offset * 3.2f
+                    vertices[out++] = dst.top + dst.height() * v + dy * offset * 3.2f
                 }
             }
             return vertices
@@ -132,8 +132,8 @@ class ParallaxWallpaperService : WallpaperService() {
                         val scale = max(w / image.width, h / image.height)
                         val drawW = image.width * scale
                         val drawH = image.height * scale
-                        val strength = if (prefs.getBoolean("motion_enabled", true)) prefs.getInt("strength", 35) / 100f else 0f
-                        val range = min(w, h) * 0.10f * strength
+                        val strength = if (prefs.getBoolean("motion_enabled", true)) prefs.getInt("strength", 55) / 100f else 0f
+                        val range = min(w, h) * 0.12f * strength
                         val dx = smoothX * range
                         val dy = -smoothY * range
                         val dst = RectF((w-drawW)/2f, (h-drawH)/2f, (w+drawW)/2f, (h+drawH)/2f)
