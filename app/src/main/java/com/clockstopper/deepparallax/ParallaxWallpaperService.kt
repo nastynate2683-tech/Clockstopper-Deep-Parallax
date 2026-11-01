@@ -9,6 +9,7 @@ import android.graphics.RectF
 import android.net.Uri
 import android.service.wallpaper.WallpaperService
 import android.view.SurfaceHolder
+import android.os.SystemClock
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -34,8 +35,9 @@ class ParallaxWallpaperService : WallpaperService() {
         private var depthBitmap: Bitmap? = null
         private var loadedUri: String? = null
         private var loadedDepthUri: String? = null
-        private val meshColumns = 64
-        private val meshRows = 96
+        private val meshColumns = 24
+        private val meshRows = 36
+        private var lastSensorDrawMs = 0L
 
         override fun onVisibilityChanged(visible: Boolean) {
             visibleNow = visible
@@ -114,6 +116,9 @@ class ParallaxWallpaperService : WallpaperService() {
 
         override fun onSensorChanged(event: SensorEvent) {
             if (!visibleNow || !prefs.getBoolean("motion_enabled", true)) return
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastSensorDrawMs < 70L) return
+            lastSensorDrawMs = now
             tiltX = (event.values[0] / 9.8f).coerceIn(-1f, 1f)
             tiltY = (event.values[1] / 9.8f).coerceIn(-1f, 1f)
             smoothX += (tiltX - smoothX) * 0.12f
