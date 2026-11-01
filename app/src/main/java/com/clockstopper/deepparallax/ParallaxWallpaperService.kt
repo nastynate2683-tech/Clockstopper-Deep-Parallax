@@ -31,7 +31,11 @@ class ParallaxWallpaperService : WallpaperService() {
         private var smoothX = 0f
         private var smoothY = 0f
         private var bitmap: Bitmap? = null
+        private var depthBitmap: Bitmap? = null
         private var loadedUri: String? = null
+        private var loadedDepthUri: String? = null
+        private val meshColumns = 32
+        private val meshRows = 48
 
         override fun onVisibilityChanged(visible: Boolean) {
             visibleNow = visible
@@ -39,11 +43,9 @@ class ParallaxWallpaperService : WallpaperService() {
                 if (prefs.getBoolean("motion_enabled", true)) accelerometer?.let {
                     sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
                 }
-                loadImage()
+                loadImages()
                 drawFrame()
-            } else {
-                sensorManager.unregisterListener(this)
-            }
+            } else sensorManager.unregisterListener(this)
         }
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -51,25 +53,32 @@ class ParallaxWallpaperService : WallpaperService() {
             if (visibleNow) drawFrame()
         }
 
-        private fun loadImage() {
-            val value = prefs.getString("image_uri", null)
-            if (value == loadedUri) return
-            bitmap?.recycle()
-            bitmap = null
-            loadedUri = value
-            if (value != null) {
-                try {
-                    contentResolver.openInputStream(Uri.parse(value))?.use {
-                        bitmap = BitmapFactory.decodeStream(it)
-                    }
-                } catch (_: Exception) { bitmap = null }
+        private fun decode(uriText: String?): Bitmap? {
+            if (uriText == null) return null
+            return try {
+                contentResolver.openInputStream(Uri.parse(uriText))?.use { BitmapFactory.decodeStream(it) }
+            } catch (_: Exception) { null }
+        }
+
+        private fun loadImages() {
+            val imageUri = prefs.getString("image_uri", null)
+            if (imageUri != loadedUri) {
+                bitmap?.recycle()
+                bitmap = decode(imageUri)
+                loadedUri = imageUri
+            }
+            val depthUri = prefs.getString("depth_uri", null)
+            if (depthUri != loadedDepthUri) {
+                depthBitmap?.recycle()
+                depthBitmap = decode(depthUri)
+                loadedDepthUri = depthUri
             }
         }
 
         override fun onSensorChanged(event: SensorEvent) {
             if (!visibleNow || !prefs.getBoolean("motion_enabled", true)) return
-            tiltX = ((event.values[0] / 9.8f).coerceIn(-1f, 1f))
-            tiltY = ((event.values[1] / 9.8f).coerceIn(-1f, 1f))
+            tiltX = (event.values[0] / 9.8f).coerceIn(-1f, 1f)
+            tiltY = (event.values[1] / 9.8f).coerceIn(-1f, 1f)
             smoothX += (tiltX - smoothX) * 0.12f
             smoothY += (tiltY - smoothY) * 0.12f
             drawFrame()
@@ -95,9 +104,30 @@ class ParallaxWallpaperService : WallpaperService() {
                         val range = min(w, h) * 0.045f * strength
                         val dx = smoothX * range
                         val dy = -smoothY * range
-                        val dst = RectF((w-drawW)/2f + dx, (h-drawH)/2f + dy, (w+drawW)/2f + dx, (h+drawH)/2f + dy)
-                        canvas.drawBitmap(image, null, dst, paint)
-                        // A subtle foreground depth layer moves slightly more than the image.
+                        val dst = RectF((w-drawW)/2f, (h-drawH)/2f, (w+drawW)/2f, (h+drawH)/2f)
+                        val depth = depthBitmap
+                        if (depth != null && !depth.isRecycled) {
+                            val vertices = FloatArray((meshColumns + 1) * (meshRows + 1) * 2)
+                            var index = 0
+                            for (row in 0..meshRows) {
+                                val y = image.height * row.toFloat() / meshRows
+                                for (col in 0..meshColumns) {
+                                    val x = image.width * col.toFloat() / meshColumns
+                                    val px = (x / image.width * (depth.width - 1)).toInt().coerceIn(0, depth.width - 1)
+                                    val py = (y / image.height * (depth.height - 1)).toInt().coerceIn(0, depth.height - 1)
+                                    val z = Color.red(depth.getPixel(px, py)) / 255f
+                                    val nx = col.toFloat() / meshColumns - 0.5f
+                                    val ny = row.toFloat() / meshRows - 0.5f
+                                    val parallax = (z - 0.5f) * 2f
+                                    vertices[index++] = dst.left + col.toFloat() / meshColumns * drawW + dx * parallax * 1.6f
+                                    vertices[index++] = dst.top + row.toFloat() / meshRows * drawH + dy * parallax * 1.6f
+                                }
+                            }
+                            canvas.drawBitmapMesh(image, meshColumns, meshRows, vertices, 0, null, 0, paint)
+                        } else {
+                            val shifted = RectF(dst.left + dx, dst.top + dy, dst.right + dx, dst.bottom + dy)
+                            canvas.drawBitmap(image, null, shifted, paint)
+                        }
                         paint.color = 0x35FFFFFF
                         paint.style = Paint.Style.STROKE
                         paint.strokeWidth = 2f
@@ -124,7 +154,9 @@ class ParallaxWallpaperService : WallpaperService() {
             visibleNow = false
             sensorManager.unregisterListener(this)
             bitmap?.recycle()
+            depthBitmap?.recycle()
             bitmap = null
+            depthBitmap = null
             super.onDestroy()
         }
     }
