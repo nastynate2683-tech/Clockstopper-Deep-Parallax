@@ -11,24 +11,27 @@ A clean-room native Android live-wallpaper project, kept separate from April.
 
 ## Current prototype
 - Native Kotlin Android live-wallpaper service.
-- Choose an image through Android's document picker; persisted read permission is requested.
-- Accelerometer-driven, smoothed image parallax while the wallpaper is visible.
-- Motion enable/disable switch and strength slider.
-- No global overlays, accessibility service, global setting changes, or background animation.
+- Choose a wallpaper image through Android's document picker.
+- Optionally choose a matching grayscale depth map (white = near, black = far).
+- A subdivided bitmap mesh uses depth-map luminance to offset vertices as the phone tilts.
+- Accelerometer input is smoothed; motion can be disabled and strength adjusted.
+- If no depth map is selected, the wallpaper falls back to simple image-pan parallax.
+- No global overlays, accessibility service, global setting changes, or automatic drift.
 
-## Important limitations
-This is an early 2D image-pan prototype with a subtle foreground frame layer. It is not yet a true depth-map renderer. Per-pixel depth displacement, separate foreground/background cutouts, glass refraction, and GPU particles remain future milestones.
+## Depth-map guidance
+Use a grayscale image matching the composition of the wallpaper. Keep important foreground objects bright and background regions dark. The current mesh renderer is a lightweight approximation: it warps a single image surface and does not yet create true occlusion, independent cutouts, glass refraction, or particles. Depth maps with abrupt edges may show mesh stretching; use soft transitions.
 
-## Build
-GitHub Actions builds a debug APK on pushes to `main` and supports manual dispatch from the Actions tab. Download the APK from the workflow run's Artifacts section.
+## Build and install
+GitHub Actions builds a debug APK on pushes to `main`. Open the latest successful run, download its `Clockstopper-Deep-Parallax-debug` artifact, extract the ZIP, and install `app-debug.apk` on Android. Android may ask permission to install apps from the browser or file manager used to open the APK.
 
 ## Next milestones
 - [x] Native live-wallpaper shell
 - [x] Image selection and saved URI permission
 - [x] Tilt enable/disable and strength setting
-- [ ] Real depth-map import and shader displacement
-- [ ] Independently controllable foreground/midground/background layers
+- [x] Optional depth-map import
+- [x] Depth-driven mesh displacement prototype
+- [ ] Separate foreground/midground/background layers with occlusion
 - [ ] Glass fragments, refraction and restrained particles
-- [ ] Device profiling and low-power mode
+- [ ] Device profiling and low-power tuning
 
 Project code is intended to be MIT-licensed. Third-party models, assets and libraries will be tracked with their own licenses and attribution.
