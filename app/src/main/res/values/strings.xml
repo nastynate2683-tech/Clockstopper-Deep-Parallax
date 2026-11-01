@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Clockstopper Deep Parallax</string>
+    <string name="wallpaper_name">Clockstopper Deep Parallax</string>
+    <string name="wallpaper_description">Tilt-driven layered depth wallpaper. No automatic drift.</string>
+</resources>
