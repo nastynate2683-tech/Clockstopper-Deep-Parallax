@@ -3,6 +3,7 @@ package com.clockstopper.deepparallax
 import android.app.Activity
 import android.app.WallpaperManager
 import android.content.ComponentName
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -65,10 +66,33 @@ class MainActivity : Activity() {
         }) },matchWrap())
         root.addView(label("Tilt your phone to move the layers. No automatic drifting.",12f,muted))
         root.addView(button("▶   PREVIEW  /  SET LIVE WALLPAPER") {
-            startActivity(Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply { putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,ComponentName(this@MainActivity,ParallaxWallpaperService::class.java)) })
+            openWallpaperPreview()
         },buttonParams())
         scroll.addView(root);setContentView(scroll)
     }
+    private fun openWallpaperPreview() {
+        val component = ComponentName(this, ParallaxWallpaperService::class.java)
+        val direct = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+            putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component)
+        }
+        try {
+            startActivity(direct)
+        } catch (_: ActivityNotFoundException) {
+            try {
+                startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
+                Toast.makeText(this, "Choose Clockstopper from the live wallpaper list.", Toast.LENGTH_LONG).show()
+            } catch (_: Exception) {
+                try {
+                    startActivity(Intent(WallpaperManager.ACTION_SET_WALLPAPER))
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Android could not open its wallpaper screen: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+                }
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Preview launch failed: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun launchPicker() {
         val intent=Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE);type="image/*";addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) }
         startActivityForResult(intent,pickImage)
