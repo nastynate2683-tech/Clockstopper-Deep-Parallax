@@ -50,19 +50,25 @@ class ParallaxWallpaperService : WallpaperService() {
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
             super.onSurfaceChanged(holder, format, width, height)
-            if (visibleNow) drawFrame()
+            if (visibleNow) {
+                loadImages()
+                drawFrame()
+            }
         }
 
         private fun decode(uriText: String?): Bitmap? {
             if (uriText.isNullOrBlank()) return null
             return try {
-                if (uriText.startsWith("/")) BitmapFactory.decodeFile(uriText)
-                else contentResolver.openInputStream(Uri.parse(uriText))?.use { BitmapFactory.decodeStream(it) }
-            } catch (_: Exception) { null }
+                when {
+                    uriText.startsWith("/") -> BitmapFactory.decodeFile(uriText)
+                    uriText.startsWith("file://") -> BitmapFactory.decodeFile(Uri.parse(uriText).path)
+                    else -> contentResolver.openInputStream(Uri.parse(uriText))?.use { BitmapFactory.decodeStream(it) }
+                }
+            } catch (_: Exception) {
+                null
+            }
         }
 
-        // Reload on every wallpaper reveal. If Android temporarily denies a document
-        // URI, do not cache the failed result; a later reveal can retry it.
         private fun loadImages() {
             val imageUri = prefs.getString("image_uri", null)
             if (imageUri != loadedUri || bitmap == null || bitmap?.isRecycled == true) {
@@ -71,24 +77,25 @@ class ParallaxWallpaperService : WallpaperService() {
                 loadedUri = if (bitmap != null) imageUri else null
             }
 
-            val depthUri = prefs.getString("depth_path", null)
-            if (depthUri != loadedDepthUri || (depthUri != null && depthBitmap == null)) {
+            val depthPath = prefs.getString("depth_path", null)
+            if (depthPath != loadedDepthUri || (depthPath != null && depthBitmap == null)) {
                 depthBitmap?.recycle()
-                depthBitmap = decode(depthUri)
-                loadedDepthUri = if (depthBitmap != null) depthUri else null
+                depthBitmap = decode(depthPath)
+                loadedDepthUri = if (depthBitmap != null) depthPath else null
             }
         }
-
 
         private fun buildDepthMesh(
             image: Bitmap,
             depth: Bitmap,
             dst: RectF,
             dx: Float,
-            dy: Float
+            dy: Float,
+            strength: Float
         ): FloatArray {
             val vertices = FloatArray((meshColumns + 1) * (meshRows + 1) * 2)
             var out = 0
+            val depthScale = 5.0f * strength
             for (row in 0..meshRows) {
                 val v = row.toFloat() / meshRows
                 val sy = (v * (depth.height - 1)).toInt().coerceIn(0, depth.height - 1)
@@ -98,9 +105,8 @@ class ParallaxWallpaperService : WallpaperService() {
                     val pixel = depth.getPixel(sx, sy)
                     val gray = (Color.red(pixel) * 0.299f + Color.green(pixel) * 0.587f + Color.blue(pixel) * 0.114f) / 255f
                     val offset = (gray - 0.5f) * 2f
-                    // BitmapMesh vertices are in bitmap coordinates, not screen coordinates.
-                    vertices[out++] = image.width * u + (dx / dst.width() * image.width) * offset * 3.2f
-                    vertices[out++] = image.height * v + (dy / dst.height() * image.height) * offset * 3.2f
+                    vertices[out++] = image.width * u + (dx / max(1f, dst.width()) * image.width) * offset * depthScale
+                    vertices[out++] = image.height * v + (dy / max(1f, dst.height()) * image.height) * offset * depthScale
                 }
             }
             return vertices
@@ -117,83 +123,87 @@ class ParallaxWallpaperService : WallpaperService() {
 
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
+        private fun drawPlain(canvas: Canvas, image: Bitmap, rect: RectF) {
+            if (!image.isRecycled) canvas.drawBitmap(image, null, rect, paint)
+        }
+
         private fun drawFrame() {
             if (!visibleNow) return
-            if (bitmap == null || loadedUri != prefs.getString("image_uri", null) ||
-                loadedDepthUri != prefs.getString("depth_path", null)) loadImages()
+            val currentImageUri = prefs.getString("image_uri", null)
+            val currentDepthPath = prefs.getString("depth_path", null)
+            if (bitmap == null || loadedUri != currentImageUri || loadedDepthUri != currentDepthPath) loadImages()
+
             var canvas: Canvas? = null
             try {
                 canvas = surfaceHolder.lockCanvas()
-                if (canvas != null) {
-                    val w = canvas.width.toFloat()
-                    val h = canvas.height.toFloat()
-                    canvas.drawColor(Color.rgb(8, 12, 24))
-                    val image = bitmap
-                    if (image != null && !image.isRecycled) {
-                        val scale = max(w / image.width, h / image.height)
-                        val drawW = image.width * scale
-                        val drawH = image.height * scale
-                        val strength = if (prefs.getBoolean("motion_enabled", true)) prefs.getInt("strength", 55) / 100f else 0f
-                        val range = min(w, h) * 0.12f * strength
-                        val dx = smoothX * range
-                        val dy = -smoothY * range
-                        val dst = RectF((w-drawW)/2f, (h-drawH)/2f, (w+drawW)/2f, (h+drawH)/2f)
-                        val shifted = RectF(dst.left + dx, dst.top + dy, dst.right + dx, dst.bottom + dy)
-                        val depth = depthBitmap
-                        if (depth != null && !depth.isRecycled) {
-                            try {
-                                val vertices = buildDepthMesh(image, depth, shifted, dx, dy)
-                                canvas.save()
-                                canvas.translate(shifted.left, shifted.top)
-                                canvas.scale(scale, scale)
-                                canvas.drawBitmapMesh(image, meshColumns, meshRows, vertices, 0, null, 0, paint)
-                                canvas.restore()
-                            } catch (_: Exception) {
-                                canvas.drawBitmap(image, null, shifted, paint)
-                            }
-                        } else {
-                            canvas.drawBitmap(image, null, shifted, paint)
-                        }
-                        paint.color = 0x35FFFFFF
-                        paint.style = Paint.Style.STROKE
-                        paint.strokeWidth = 2f
-                        val inset = min(w,h) * 0.08f
-                        canvas.drawRoundRect(RectF(inset + dx*1.35f, inset + dy*1.35f, w-inset + dx*1.35f, h-inset + dy*1.35f), 28f, 28f, paint)
-                        paint.style = Paint.Style.FILL
-                        paint.color = Color.WHITE
-                    } else {
-                        paint.color = Color.rgb(226, 48, 72)
-                        paint.textSize = 42f
-                        canvas.drawText("CLOCKSTOPPER", 32f, h*0.48f, paint)
-                        paint.color = Color.LTGRAY
-                        paint.textSize = 22f
-                        canvas.drawText("CHOOSE AN IMAGE TO BEGIN", 34f, h*0.48f+38f, paint)
+                if (canvas == null) return
+                val w = canvas.width.toFloat()
+                val h = canvas.height.toFloat()
+                canvas.drawColor(Color.rgb(8, 12, 24))
+                val image = bitmap
+                if (image == null || image.isRecycled) {
+                    paint.color = Color.rgb(226, 48, 72)
+                    paint.style = Paint.Style.FILL
+                    paint.textSize = 42f
+                    canvas.drawText("CLOCKSTOPPER", 32f, h * 0.48f, paint)
+                    paint.color = Color.LTGRAY
+                    paint.textSize = 22f
+                    canvas.drawText("CHOOSE AN IMAGE TO BEGIN", 34f, h * 0.48f + 38f, paint)
+                    return
+                }
+
+                val scale = max(w / image.width, h / image.height)
+                val drawW = image.width * scale
+                val drawH = image.height * scale
+                val strength = if (prefs.getBoolean("motion_enabled", true)) prefs.getInt("strength", 55).coerceIn(0, 100) / 100f else 0f
+                val range = min(w, h) * 0.16f * strength
+                val dx = smoothX * range
+                val dy = -smoothY * range
+                val dst = RectF((w - drawW) / 2f, (h - drawH) / 2f, (w + drawW) / 2f, (h + drawH) / 2f)
+                val shifted = RectF(dst.left + dx, dst.top + dy, dst.right + dx, dst.bottom + dy)
+
+                // Always draw a normal image first. That guarantees the preview cannot
+                // become a black screen just because a depth mesh fails or is malformed.
+                drawPlain(canvas, image, shifted)
+
+                val depth = depthBitmap
+                if (depth != null && !depth.isRecycled && strength > 0f) {
+                    try {
+                        val vertices = buildDepthMesh(image, depth, shifted, dx, dy, strength)
+                        canvas.save()
+                        canvas.translate(shifted.left, shifted.top)
+                        canvas.scale(scale, scale)
+                        canvas.drawBitmapMesh(image, meshColumns, meshRows, vertices, 0, null, 0, paint)
+                        canvas.restore()
+                    } catch (_: Throwable) {
+                        // The normal image is already on the surface; keep it.
                     }
                 }
-            } catch (_: Exception) {
-                // Never leave the wallpaper surface black if mesh/depth rendering fails.
+
+                paint.color = 0x35FFFFFF
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 2f
+                val inset = min(w, h) * 0.08f
+                canvas.drawRoundRect(RectF(inset + dx * 1.35f, inset + dy * 1.35f, w - inset + dx * 1.35f, h - inset + dy * 1.35f), 28f, 28f, paint)
+                paint.style = Paint.Style.FILL
+                paint.color = Color.WHITE
+            } catch (_: Throwable) {
+                // If anything unexpected happens, make one final attempt to show the
+                // normal wallpaper instead of leaving a black surface.
                 try {
-                    val safeCanvas = canvas
-                    if (safeCanvas != null) {
-                        safeCanvas.drawColor(Color.rgb(8, 12, 24))
-                        val image = bitmap
-                        if (image != null && !image.isRecycled) {
-                            val scale = max(safeCanvas.width.toFloat() / image.width, safeCanvas.height.toFloat() / image.height)
-                            val drawW = image.width * scale
-                            val drawH = image.height * scale
-                            val left = (safeCanvas.width - drawW) / 2f
-                            val top = (safeCanvas.height - drawH) / 2f
-                            safeCanvas.drawBitmap(image, null, RectF(left, top, left + drawW, top + drawH), paint)
-                        } else {
-                            paint.color = Color.WHITE
-                            paint.textSize = 34f
-                            safeCanvas.drawText("CLOCKSTOPPER", 28f, safeCanvas.height * 0.5f, paint)
-                        }
+                    if (canvas != null) {
+                        canvas.drawColor(Color.rgb(8, 12, 24))
+                        bitmap?.let { if (!it.isRecycled) {
+                            val scale = max(canvas.width.toFloat() / it.width, canvas.height.toFloat() / it.height)
+                            val drawW = it.width * scale
+                            val drawH = it.height * scale
+                            drawPlain(canvas, it, RectF((canvas.width - drawW) / 2f, (canvas.height - drawH) / 2f, (canvas.width + drawW) / 2f, (canvas.height + drawH) / 2f))
+                        }}
                     }
-                } catch (_: Exception) { }
+                } catch (_: Throwable) { }
             } finally {
                 if (canvas != null) {
-                    try { surfaceHolder.unlockCanvasAndPost(canvas) } catch (_: Exception) { }
+                    try { surfaceHolder.unlockCanvasAndPost(canvas) } catch (_: Throwable) { }
                 }
             }
         }
