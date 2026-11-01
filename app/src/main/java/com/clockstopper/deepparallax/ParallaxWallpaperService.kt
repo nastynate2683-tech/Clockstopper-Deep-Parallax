@@ -56,12 +56,9 @@ class ParallaxWallpaperService : WallpaperService() {
         private fun decode(uriText: String?): Bitmap? {
             if (uriText.isNullOrBlank()) return null
             return try {
-                contentResolver.openInputStream(Uri.parse(uriText))?.use {
-                    BitmapFactory.decodeStream(it)
-                }
-            } catch (_: Exception) {
-                null
-            }
+                if (uriText.startsWith("/")) BitmapFactory.decodeFile(uriText)
+                else contentResolver.openInputStream(Uri.parse(uriText))?.use { BitmapFactory.decodeStream(it) }
+            } catch (_: Exception) { null }
         }
 
         // Reload on every wallpaper reveal. If Android temporarily denies a document
@@ -74,7 +71,7 @@ class ParallaxWallpaperService : WallpaperService() {
                 loadedUri = if (bitmap != null) imageUri else null
             }
 
-            val depthUri = prefs.getString("depth_uri", null)
+            val depthUri = prefs.getString("depth_path", null)
             if (depthUri != loadedDepthUri || (depthUri != null && depthBitmap == null)) {
                 depthBitmap?.recycle()
                 depthBitmap = decode(depthUri)
@@ -121,6 +118,8 @@ class ParallaxWallpaperService : WallpaperService() {
 
         private fun drawFrame() {
             if (!visibleNow) return
+            if (bitmap == null || loadedUri != prefs.getString("image_uri", null) ||
+                loadedDepthUri != prefs.getString("depth_path", null)) loadImages()
             var canvas: Canvas? = null
             try {
                 canvas = surfaceHolder.lockCanvas()
@@ -134,7 +133,7 @@ class ParallaxWallpaperService : WallpaperService() {
                         val drawW = image.width * scale
                         val drawH = image.height * scale
                         val strength = if (prefs.getBoolean("motion_enabled", true)) prefs.getInt("strength", 35) / 100f else 0f
-                        val range = min(w, h) * 0.045f * strength
+                        val range = min(w, h) * 0.10f * strength
                         val dx = smoothX * range
                         val dy = -smoothY * range
                         val dst = RectF((w-drawW)/2f, (h-drawH)/2f, (w+drawW)/2f, (h+drawH)/2f)
