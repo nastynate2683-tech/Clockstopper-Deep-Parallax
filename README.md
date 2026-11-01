@@ -1,27 +1,34 @@
 # Clockstopper Deep Parallax
 
-A clean-room Android live-wallpaper project, kept completely separate from April.
+A clean-room native Android live-wallpaper project, kept separate from April.
 
 ## Design priorities
-1. Smoothness first, depth second, visual impact third.
-2. Phone tilt is the input: no automatic drift or idle animation.
-3. Motion must be app-scoped, reversible, and have a clear off switch.
-4. Preserve image proportions: fill the screen by cropping excess, never squeeze.
-5. Target the Moto G Play (2024) first; keep GPU and memory budgets conservative.
+- Smoothness first, depth second, visual impact third.
+- Phone tilt is the input: no automatic drift or idle animation.
+- Motion is app-scoped, reversible, and has a clear off switch.
+- Preserve image proportions: fill by cropping excess, never squeeze.
+- Target Moto G Play (2024) first; keep GPU and memory budgets conservative.
 
-## Current stage
-This is the initial native Android live-wallpaper foundation. It establishes the app/service/build pipeline. The layered depth-map renderer, image import, per-layer parallax controls, glass/refraction shaders, and particle system are planned milestones—not represented as finished features yet.
+## Current prototype
+- Native Kotlin Android live-wallpaper service.
+- Choose an image through Android's document picker; persisted read permission is requested.
+- Accelerometer-driven, smoothed image parallax while the wallpaper is visible.
+- Motion enable/disable switch and strength slider.
+- No global overlays, accessibility service, global setting changes, or background animation.
+
+## Important limitations
+This is an early 2D image-pan prototype with a subtle foreground frame layer. It is not yet a true depth-map renderer. Per-pixel depth displacement, separate foreground/background cutouts, glass refraction, and GPU particles remain future milestones.
 
 ## Build
-Pushes to `main` run the Android debug build through GitHub Actions. Download the APK from the workflow run's Artifacts section.
+GitHub Actions builds a debug APK on pushes to `main` and supports manual dispatch from the Actions tab. Download the APK from the workflow run's Artifacts section.
 
-## Planned milestones
-- [ ] Buildable Android live-wallpaper shell
-- [ ] User-selected image and depth-map import
-- [ ] Multi-layer GPU displacement with edge-safe overscan
-- [ ] Gyroscope smoothing, strength slider, and hard off switch
-- [ ] Optional glass fragments, refraction, and restrained particles
+## Next milestones
+- [x] Native live-wallpaper shell
+- [x] Image selection and saved URI permission
+- [x] Tilt enable/disable and strength setting
+- [ ] Real depth-map import and shader displacement
+- [ ] Independently controllable foreground/midground/background layers
+- [ ] Glass fragments, refraction and restrained particles
 - [ ] Device profiling and low-power mode
 
-## License
-Project code is intended to be MIT-licensed. Third-party models, assets, and libraries will be tracked with their own licenses and attribution.
+Project code is intended to be MIT-licensed. Third-party models, assets and libraries will be tracked with their own licenses and attribution.
