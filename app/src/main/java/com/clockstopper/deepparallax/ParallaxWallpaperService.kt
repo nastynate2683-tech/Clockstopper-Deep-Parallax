@@ -98,8 +98,9 @@ class ParallaxWallpaperService : WallpaperService() {
                     val pixel = depth.getPixel(sx, sy)
                     val gray = (Color.red(pixel) * 0.299f + Color.green(pixel) * 0.587f + Color.blue(pixel) * 0.114f) / 255f
                     val offset = (gray - 0.5f) * 2f
-                    vertices[out++] = dst.left + dst.width() * u + dx * offset * 3.2f
-                    vertices[out++] = dst.top + dst.height() * v + dy * offset * 3.2f
+                    // BitmapMesh vertices are in bitmap coordinates, not screen coordinates.
+                    vertices[out++] = image.width * u + (dx / dst.width() * image.width) * offset * 3.2f
+                    vertices[out++] = image.height * v + (dy / dst.height() * image.height) * offset * 3.2f
                 }
             }
             return vertices
@@ -142,7 +143,11 @@ class ParallaxWallpaperService : WallpaperService() {
                         if (depth != null && !depth.isRecycled) {
                             try {
                                 val vertices = buildDepthMesh(image, depth, shifted, dx, dy)
+                                canvas.save()
+                                canvas.translate(shifted.left, shifted.top)
+                                canvas.scale(scale, scale)
                                 canvas.drawBitmapMesh(image, meshColumns, meshRows, vertices, 0, null, 0, paint)
+                                canvas.restore()
                             } catch (_: Exception) {
                                 canvas.drawBitmap(image, null, shifted, paint)
                             }
