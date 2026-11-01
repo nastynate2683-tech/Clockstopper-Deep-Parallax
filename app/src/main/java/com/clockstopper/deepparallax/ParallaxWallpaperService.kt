@@ -145,8 +145,30 @@ class ParallaxWallpaperService : WallpaperService() {
                     }
                 }
             } catch (_: Exception) {
+                // Never leave the wallpaper surface black if mesh/depth rendering fails.
+                try {
+                    val safeCanvas = canvas
+                    if (safeCanvas != null) {
+                        safeCanvas.drawColor(Color.rgb(8, 12, 24))
+                        val image = bitmap
+                        if (image != null && !image.isRecycled) {
+                            val scale = max(safeCanvas.width.toFloat() / image.width, safeCanvas.height.toFloat() / image.height)
+                            val drawW = image.width * scale
+                            val drawH = image.height * scale
+                            val left = (safeCanvas.width - drawW) / 2f
+                            val top = (safeCanvas.height - drawH) / 2f
+                            safeCanvas.drawBitmap(image, null, RectF(left, top, left + drawW, top + drawH), paint)
+                        } else {
+                            paint.color = Color.WHITE
+                            paint.textSize = 34f
+                            safeCanvas.drawText("CLOCKSTOPPER", 28f, safeCanvas.height * 0.5f, paint)
+                        }
+                    }
+                } catch (_: Exception) { }
             } finally {
-                if (canvas != null) surfaceHolder.unlockCanvasAndPost(canvas)
+                if (canvas != null) {
+                    try { surfaceHolder.unlockCanvasAndPost(canvas) } catch (_: Exception) { }
+                }
             }
         }
 
