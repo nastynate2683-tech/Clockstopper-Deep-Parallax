@@ -54,23 +54,32 @@ class ParallaxWallpaperService : WallpaperService() {
         }
 
         private fun decode(uriText: String?): Bitmap? {
-            if (uriText == null) return null
+            if (uriText.isNullOrBlank()) return null
             return try {
-                contentResolver.openInputStream(Uri.parse(uriText))?.use { BitmapFactory.decodeStream(it) }
-            } catch (_: Exception) { null }
+                contentResolver.openInputStream(Uri.parse(uriText))?.use {
+                    BitmapFactory.decodeStream(it)
+                }
+            } catch (_: Exception) {
+                null
+            }
         }
 
+        // Reload on every wallpaper reveal. If Android temporarily denies a document
+        // URI, do not cache the failed result; a later reveal can retry it.
         private fun loadImages() {
             val imageUri = prefs.getString("image_uri", null)
-            if (imageUri != loadedUri) {
+            if (imageUri != loadedUri || bitmap == null || bitmap?.isRecycled == true) {
                 bitmap?.recycle()
                 bitmap = decode(imageUri)
-                loadedUri = imageUri
+                loadedUri = if (bitmap != null) imageUri else null
             }
+
+            // Depth-map selection remains stored in the app, but the renderer is
+            // deliberately using the proven direct-bitmap path until it is retested.
             val depthUri = prefs.getString("depth_uri", null)
             if (depthUri != loadedDepthUri) {
                 depthBitmap?.recycle()
-                depthBitmap = decode(depthUri)
+                depthBitmap = null
                 loadedDepthUri = depthUri
             }
         }
@@ -105,29 +114,8 @@ class ParallaxWallpaperService : WallpaperService() {
                         val dx = smoothX * range
                         val dy = -smoothY * range
                         val dst = RectF((w-drawW)/2f, (h-drawH)/2f, (w+drawW)/2f, (h+drawH)/2f)
-                        val depth = depthBitmap
-                        if (depth != null && !depth.isRecycled) {
-                            val vertices = FloatArray((meshColumns + 1) * (meshRows + 1) * 2)
-                            var index = 0
-                            for (row in 0..meshRows) {
-                                val y = image.height * row.toFloat() / meshRows
-                                for (col in 0..meshColumns) {
-                                    val x = image.width * col.toFloat() / meshColumns
-                                    val px = (x / image.width * (depth.width - 1)).toInt().coerceIn(0, depth.width - 1)
-                                    val py = (y / image.height * (depth.height - 1)).toInt().coerceIn(0, depth.height - 1)
-                                    val z = Color.red(depth.getPixel(px, py)) / 255f
-                                    val nx = col.toFloat() / meshColumns - 0.5f
-                                    val ny = row.toFloat() / meshRows - 0.5f
-                                    val parallax = (z - 0.5f) * 2f
-                                    vertices[index++] = dst.left + col.toFloat() / meshColumns * drawW + dx * parallax * 1.6f
-                                    vertices[index++] = dst.top + row.toFloat() / meshRows * drawH + dy * parallax * 1.6f
-                                }
-                            }
-                            canvas.drawBitmapMesh(image, meshColumns, meshRows, vertices, 0, null, 0, paint)
-                        } else {
-                            val shifted = RectF(dst.left + dx, dst.top + dy, dst.right + dx, dst.bottom + dy)
-                            canvas.drawBitmap(image, null, shifted, paint)
-                        }
+                        val shifted = RectF(dst.left + dx, dst.top + dy, dst.right + dx, dst.bottom + dy)
+                        canvas.drawBitmap(image, null, shifted, paint)
                         paint.color = 0x35FFFFFF
                         paint.style = Paint.Style.STROKE
                         paint.strokeWidth = 2f
