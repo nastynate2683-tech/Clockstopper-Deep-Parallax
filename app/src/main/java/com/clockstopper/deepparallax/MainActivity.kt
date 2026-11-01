@@ -83,7 +83,7 @@ class MainActivity : Activity() {
                 Toast.makeText(this, "Choose Clockstopper from the live wallpaper list.", Toast.LENGTH_LONG).show()
             } catch (_: Exception) {
                 try {
-                    startActivity(Intent(WallpaperManager.ACTION_SET_WALLPAPER))
+                    startActivity(Intent(Intent.ACTION_SET_WALLPAPER))
                 } catch (e: Exception) {
                     Toast.makeText(this, "Android could not open its wallpaper screen: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
                 }
