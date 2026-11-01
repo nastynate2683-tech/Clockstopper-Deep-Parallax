@@ -16,6 +16,7 @@ import android.widget.TextView
 class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("parallax", MODE_PRIVATE) }
     private val pickImage = 41
+    private val pickDepth = 42
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,20 +31,21 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
         })
         root.addView(TextView(this).apply {
-            text = "Choose a photo, then set the live wallpaper. Tilt movement is local to this wallpaper; nothing changes across the rest of your phone."
+            text = "Choose an image and, optionally, a matching grayscale depth map. White areas are nearer; black areas are farther away. Tilt is local to this wallpaper."
             textSize = 16f
             setPadding(0, 22, 0, 18)
         })
         root.addView(Button(this).apply {
             text = "Choose wallpaper image"
-            setOnClickListener {
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "image/*"
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-                }
-                startActivityForResult(intent, pickImage)
-            }
+            setOnClickListener { launchPicker(pickImage) }
+        })
+        root.addView(Button(this).apply {
+            text = "Choose grayscale depth map (optional)"
+            setOnClickListener { launchPicker(pickDepth) }
+        })
+        root.addView(Button(this).apply {
+            text = "Clear depth map"
+            setOnClickListener { prefs.edit().remove("depth_uri").apply() }
         })
         val motion = Switch(this).apply {
             text = "Tilt movement enabled"
@@ -52,7 +54,7 @@ class MainActivity : Activity() {
         }
         root.addView(motion)
         root.addView(TextView(this).apply { text = "Tilt strength"; textSize = 16f; setPadding(0, 20, 0, 4) })
-        val strength = SeekBar(this).apply {
+        root.addView(SeekBar(this).apply {
             max = 100
             progress = prefs.getInt("strength", 35)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -62,8 +64,7 @@ class MainActivity : Activity() {
                 override fun onStartTrackingTouch(seekBar: SeekBar?) {}
                 override fun onStopTrackingTouch(seekBar: SeekBar?) {}
             })
-        }
-        root.addView(strength)
+        })
         root.addView(Button(this).apply {
             text = "Preview / Set live wallpaper"
             setOnClickListener {
@@ -77,17 +78,25 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
+    private fun launchPicker(request: Int) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        startActivityForResult(intent, request)
+    }
+
     @Deprecated("Deprecated by Android, retained for broad device compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == pickImage && resultCode == RESULT_OK) {
+        if ((requestCode == pickImage || requestCode == pickDepth) && resultCode == RESULT_OK) {
             val uri: Uri = data?.data ?: return
             try {
                 contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                prefs.edit().putString("image_uri", uri.toString()).apply()
-            } catch (_: SecurityException) {
-                prefs.edit().putString("image_uri", uri.toString()).apply()
-            }
+            } catch (_: SecurityException) { }
+            val key = if (requestCode == pickDepth) "depth_uri" else "image_uri"
+            prefs.edit().putString(key, uri.toString()).apply()
         }
     }
 }
