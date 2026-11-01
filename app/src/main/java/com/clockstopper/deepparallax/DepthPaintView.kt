@@ -23,10 +23,15 @@ class DepthPaintView(context: Context) : View(context) {
 
     fun load(uri: Uri) {
         image = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-        image?.let { depth = Bitmap.createBitmap(it.width.coerceAtMost(1400), it.height.coerceAtMost(1400), Bitmap.Config.ARGB_8888).apply { eraseColor(Color.rgb(128,128,128)) } }
+        image?.let { src ->
+            val factor = minOf(1f, 1400f / max(src.width, src.height))
+            val dw = (src.width * factor).toInt().coerceAtLeast(1)
+            val dh = (src.height * factor).toInt().coerceAtLeast(1)
+            depth = Bitmap.createBitmap(dw, dh, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.rgb(128,128,128)) }
+        }
         invalidate()
     }
-    fun setForeground(value: Boolean) { foreground = value; stroke.color = if(value) Color.WHITE else Color.BLACK }
+    fun setForeground(value: Boolean) { foreground = value; stroke.color = if(value) Color.WHITE else Color.BLACK; invalidate() }
     fun setBrush(value: Float) { brush = value.coerceIn(8f, 150f); stroke.strokeWidth = brush }
     fun save(path: String): Boolean {
         val map = depth ?: return false
@@ -45,8 +50,8 @@ class DepthPaintView(context: Context) : View(context) {
         canvas.drawBitmap(src,null,RectF(left,top,left+dw,top+dh),imagePaint)
         depth?.let { map ->
             val layer = Bitmap.createScaledBitmap(map, src.width, src.height, true)
-            val overlay = Paint(Paint.ANTI_ALIAS_FLAG).apply { alpha = 80; colorFilter = PorterDuffColorFilter(Color.CYAN,PorterDuff.Mode.SRC_ATOP) }
-            // Light translucent tint signals that depth painting is active without hiding the photo.
+            // Show the actual grayscale depth map so white/black brush strokes are visible.
+            val overlay = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply { alpha = 150 }
             canvas.drawBitmap(layer,null,RectF(left,top,left+dw,top+dh),overlay)
             if(layer !== map) layer.recycle()
         }
@@ -61,7 +66,14 @@ class DepthPaintView(context: Context) : View(context) {
         val my=y*(map.height-1)/max(1,src.height-1).toFloat()
         when(event.action) {
             MotionEvent.ACTION_DOWN -> { lastX=mx;lastY=my; drawDot(map,mx,my); invalidate(); return true }
-            MotionEvent.ACTION_MOVE -> { val c=Canvas(map); stroke.strokeWidth=brush*map.width.toFloat()/src.width; c.drawLine(lastX,lastY,mx,my,stroke);lastX=mx;lastY=my;invalidate();return true }
+            MotionEvent.ACTION_MOVE -> {
+                val c=Canvas(map)
+                stroke.strokeWidth=brush*map.width.toFloat()/src.width
+                c.drawLine(lastX,lastY,mx,my,stroke)
+                lastX=mx;lastY=my
+                invalidate()
+                return true
+            }
             MotionEvent.ACTION_UP -> { drawDot(map,mx,my);invalidate();return true }
         }
         return true
