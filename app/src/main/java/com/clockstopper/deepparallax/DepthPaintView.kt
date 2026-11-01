@@ -78,7 +78,7 @@ class DepthPaintView(context: Context) : View(context) {
         canvas.drawColor(Color.rgb(15, 12, 18))
         val src = image ?: return
 
-        val fit = max(width.toFloat() / src.width, height.toFloat() / src.height)
+        val fit = minOf(width.toFloat() / src.width, height.toFloat() / src.height)
         scale = fit
         val dw = src.width * fit
         val dh = src.height * fit
