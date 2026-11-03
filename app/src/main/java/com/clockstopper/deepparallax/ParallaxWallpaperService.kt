@@ -80,10 +80,12 @@ class ParallaxWallpaperService : WallpaperService() {
             }
 
             val depthPath = prefs.getString("depth_path", null)
-            if (depthPath != loadedDepthUri || (depthPath != null && depthBitmap == null)) {
+            val depthUri = prefs.getString("depth_uri", null)
+            val depthSource = depthPath ?: depthUri
+            if (depthSource != loadedDepthUri || (depthSource != null && depthBitmap == null)) {
                 depthBitmap?.recycle()
-                depthBitmap = decode(depthPath)
-                loadedDepthUri = if (depthBitmap != null) depthPath else null
+                depthBitmap = decode(depthSource)
+                loadedDepthUri = if (depthBitmap != null) depthSource else null
             }
         }
 
@@ -136,7 +138,9 @@ class ParallaxWallpaperService : WallpaperService() {
             if (!visibleNow) return
             val currentImageUri = prefs.getString("image_uri", null)
             val currentDepthPath = prefs.getString("depth_path", null)
-            if (bitmap == null || loadedUri != currentImageUri || loadedDepthUri != currentDepthPath) loadImages()
+            val currentDepthUri = prefs.getString("depth_uri", null)
+            val currentDepthSource = currentDepthPath ?: currentDepthUri
+            if (bitmap == null || loadedUri != currentImageUri || loadedDepthUri != currentDepthSource) loadImages()
 
             var canvas: Canvas? = null
             try {
