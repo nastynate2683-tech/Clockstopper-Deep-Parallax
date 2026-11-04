@@ -177,16 +177,19 @@ class ParallaxWallpaperService : WallpaperService() {
                     // stationary/plain copy underneath creates doubled edges and makes
                     // painted depth regions look like they are stuck to the screen.
                     var meshDrawn = false
+                    var savedCanvas = false
                     try {
                         val vertices = buildDepthMesh(image, depth, shifted, dx, dy, strength)
                         canvas.save()
+                        savedCanvas = true
                         canvas.translate(shifted.left, shifted.top)
                         canvas.scale(scale, scale)
                         canvas.drawBitmapMesh(image, meshColumns, meshRows, vertices, 0, null, 0, paint)
                         canvas.restore()
+                        savedCanvas = false
                         meshDrawn = true
                     } catch (_: Throwable) {
-                        try { canvas.restore() } catch (_: Throwable) { }
+                        if (savedCanvas) canvas.restore()
                     }
                     if (!meshDrawn) drawPlain(canvas, image, shifted)
                 } else {
