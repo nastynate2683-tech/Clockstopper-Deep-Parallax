@@ -161,15 +161,16 @@ class ParallaxWallpaperService : WallpaperService() {
                     return
                 }
 
-                // Match the editor preview's FIT_CENTER behavior: show the entire artwork instead of center-cropping it.
-                val scale = min(w / image.width, h / image.height)
-                val drawW = image.width * scale
-                val drawH = image.height * scale
+                // Fill the entire phone screen: preserve screen width and stretch vertically.
+                val scaleX = w / image.width
+                val scaleY = h / image.height
+                val drawW = w
+                val drawH = h
                 val strength = if (prefs.getBoolean("motion_enabled", true)) prefs.getInt("strength", 55).coerceIn(0, 100) / 100f else 0f
                 val range = min(w, h) * 0.025f * strength
                 val dx = smoothX * range
                 val dy = -smoothY * range
-                val dst = RectF((w - drawW) / 2f, (h - drawH) / 2f, (w + drawW) / 2f, (h + drawH) / 2f)
+                val dst = RectF(0f, 0f, drawW, drawH)
                 val shifted = RectF(dst.left + dx, dst.top + dy, dst.right + dx, dst.bottom + dy)
 
                 val depth = depthBitmap
@@ -184,7 +185,7 @@ class ParallaxWallpaperService : WallpaperService() {
                         canvas.save()
                         savedCanvas = true
                         canvas.translate(shifted.left, shifted.top)
-                        canvas.scale(scale, scale)
+                        canvas.scale(scaleX, scaleY)
                         canvas.drawBitmapMesh(image, meshColumns, meshRows, vertices, 0, null, 0, paint)
                         canvas.restore()
                         savedCanvas = false
@@ -203,10 +204,9 @@ class ParallaxWallpaperService : WallpaperService() {
                     if (canvas != null) {
                         canvas.drawColor(Color.rgb(8, 12, 24))
                         bitmap?.let { if (!it.isRecycled) {
-                            val scale = min(canvas.width.toFloat() / it.width, canvas.height.toFloat() / it.height)
-                            val drawW = it.width * scale
-                            val drawH = it.height * scale
-                            drawPlain(canvas, it, RectF((canvas.width - drawW) / 2f, (canvas.height - drawH) / 2f, (canvas.width + drawW) / 2f, (canvas.height + drawH) / 2f))
+                            val drawW = canvas.width.toFloat()
+                            val drawH = canvas.height.toFloat()
+                            drawPlain(canvas, it, RectF(0f, 0f, drawW, drawH))
                         }}
                     }
                 } catch (_: Throwable) { }
