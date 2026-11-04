@@ -161,7 +161,8 @@ class ParallaxWallpaperService : WallpaperService() {
                     return
                 }
 
-                val scale = max(w / image.width, h / image.height)
+                // Match the editor preview's FIT_CENTER behavior: show the entire artwork instead of center-cropping it.
+                val scale = min(w / image.width, h / image.height)
                 val drawW = image.width * scale
                 val drawH = image.height * scale
                 val strength = if (prefs.getBoolean("motion_enabled", true)) prefs.getInt("strength", 55).coerceIn(0, 100) / 100f else 0f
@@ -202,7 +203,7 @@ class ParallaxWallpaperService : WallpaperService() {
                     if (canvas != null) {
                         canvas.drawColor(Color.rgb(8, 12, 24))
                         bitmap?.let { if (!it.isRecycled) {
-                            val scale = max(canvas.width.toFloat() / it.width, canvas.height.toFloat() / it.height)
+                            val scale = min(canvas.width.toFloat() / it.width, canvas.height.toFloat() / it.height)
                             val drawW = it.width * scale
                             val drawH = it.height * scale
                             drawPlain(canvas, it, RectF((canvas.width - drawW) / 2f, (canvas.height - drawH) / 2f, (canvas.width + drawW) / 2f, (canvas.height + drawH) / 2f))
