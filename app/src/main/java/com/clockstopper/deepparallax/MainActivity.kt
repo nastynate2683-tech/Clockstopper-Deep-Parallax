@@ -35,7 +35,7 @@ class MainActivity : Activity() {
         root.addView(label("CLOCKSTOPPER",27f,softRed).apply { typeface=Typeface.create("sans-serif-black",Typeface.BOLD);letterSpacing=.13f })
         root.addView(label("D E E P   P A R A L L A X",11f,muted))
         root.addView(label("BUILD YOUR WORLD IN DEPTH",13f,white).apply { typeface=Typeface.DEFAULT_BOLD })
-        root.addView(label("Choose your wallpaper and optional depth map. No finger painting.",14f,muted))
+        root.addView(label("Choose an image, paint near and far areas, then feel the depth.",14f,muted))
         root.addView(button("✦   CHOOSE WALLPAPER IMAGE") { launchPicker(pickImage) },buttonParams())
         previewLabel=label("FULL IMAGE PREVIEW  •  CHOOSE AN IMAGE",12f,softRed)
         root.addView(previewLabel)
@@ -47,6 +47,11 @@ class MainActivity : Activity() {
         }
         root.addView(imagePreview,LinearLayout.LayoutParams(-1,dp(440)).apply { setMargins(0,dp(4),0,dp(8)) })
         restorePreview()
+        root.addView(button("✎   PAINT DEPTH ON YOUR IMAGE") {
+            if (prefs.getString("image_uri",null)==null) {
+                Toast.makeText(this,"Choose a wallpaper image first.",Toast.LENGTH_SHORT).show()
+            } else startActivity(Intent(this,DepthPaintActivity::class.java))
+        },buttonParams())
         root.addView(button("◈   CHOOSE DEPTH MAP  ·  OPTIONAL") { launchPicker(pickDepth) },buttonParams())
         root.addView(button("CLEAR DEPTH MAP") {
             prefs.edit().remove("depth_uri").remove("depth_path").apply()
@@ -76,29 +81,17 @@ class MainActivity : Activity() {
         try {
             imagePreview.setImageURI(Uri.parse(saved))
             previewLabel.text="WALLPAPER PREVIEW  •  FULL IMAGE FIT"
-        } catch (_:Exception) {
-            previewLabel.text="IMAGE PREVIEW UNAVAILABLE  •  CHOOSE AGAIN"
-        }
+        } catch (_:Exception) { previewLabel.text="IMAGE PREVIEW UNAVAILABLE  •  CHOOSE AGAIN" }
     }
 
     private fun openWallpaperPreview() {
         val component = ComponentName(this, ParallaxWallpaperService::class.java)
-        val direct = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
-            putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component)
-        }
-        try {
-            startActivity(direct)
-        } catch (_: ActivityNotFoundException) {
-            try {
-                startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
-                Toast.makeText(this, "Choose Clockstopper from the live wallpaper list.", Toast.LENGTH_LONG).show()
-            } catch (_: Exception) {
-                try { startActivity(Intent(Intent.ACTION_SET_WALLPAPER)) }
-                catch (e: Exception) { Toast.makeText(this, "Android could not open its wallpaper screen: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show() }
-            }
-        } catch (e: Exception) {
-            Toast.makeText(this, "Preview launch failed: ${e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
-        }
+        val direct = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply { putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component) }
+        try { startActivity(direct) }
+        catch (_: ActivityNotFoundException) {
+            try { startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER));Toast.makeText(this,"Choose Clockstopper from the live wallpaper list.",Toast.LENGTH_LONG).show() }
+            catch (_: Exception) { try { startActivity(Intent(Intent.ACTION_SET_WALLPAPER)) } catch (e: Exception) { Toast.makeText(this,"Android could not open its wallpaper screen: ${e.javaClass.simpleName}",Toast.LENGTH_LONG).show() } }
+        } catch (e: Exception) { Toast.makeText(this,"Preview launch failed: ${e.javaClass.simpleName}",Toast.LENGTH_LONG).show() }
     }
 
     private fun launchPicker(request:Int) {
@@ -113,9 +106,8 @@ class MainActivity : Activity() {
         val uri=data?.data ?: return
         try { contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_:SecurityException) {}
         if(requestCode==pickImage) {
-            prefs.edit().putString("image_uri",uri.toString()).apply()
-            imagePreview.setImageURI(uri)
-            previewLabel.text="WALLPAPER PREVIEW  •  FULL IMAGE FIT"
+            prefs.edit().putString("image_uri",uri.toString()).remove("depth_path").remove("depth_uri").apply()
+            imagePreview.setImageURI(uri);previewLabel.text="WALLPAPER PREVIEW  •  FULL IMAGE FIT"
         } else {
             prefs.edit().putString("depth_uri",uri.toString()).remove("depth_path").apply()
             Toast.makeText(this,"Depth map selected",Toast.LENGTH_SHORT).show()
