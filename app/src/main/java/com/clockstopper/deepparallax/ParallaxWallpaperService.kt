@@ -99,7 +99,7 @@ class ParallaxWallpaperService : WallpaperService() {
         ): FloatArray {
             val vertices = FloatArray((meshColumns + 1) * (meshRows + 1) * 2)
             var out = 0
-            val depthScale = 5.0f * strength
+            val depthScale = 1.0f * strength
             for (row in 0..meshRows) {
                 val v = row.toFloat() / meshRows
                 val sy = (v * (depth.height - 1)).toInt().coerceIn(0, depth.height - 1)
@@ -166,7 +166,7 @@ class ParallaxWallpaperService : WallpaperService() {
                 val drawW = image.width * scale
                 val drawH = image.height * scale
                 val strength = if (prefs.getBoolean("motion_enabled", true)) prefs.getInt("strength", 55).coerceIn(0, 100) / 100f else 0f
-                val range = min(w, h) * 0.16f * strength
+                val range = min(w, h) * 0.025f * strength
                 val dx = smoothX * range
                 val dy = -smoothY * range
                 val dst = RectF((w - drawW) / 2f, (h - drawH) / 2f, (w + drawW) / 2f, (h + drawH) / 2f)
