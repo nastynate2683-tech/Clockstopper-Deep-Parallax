@@ -118,6 +118,16 @@ class DepthPaintView(context: Context) : View(context) {
         val map = depth ?: return true
         if (scale <= 0f || src.width <= 0 || src.height <= 0) return true
 
+        // Ignore touches in the letterboxed margins instead of clamping them
+        // onto the image edge (which used to create unwanted painted bands).
+        val imageRight = left + src.width * scale
+        val imageBottom = top + src.height * scale
+        if (event.x < left || event.x > imageRight || event.y < top || event.y > imageBottom) {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            return true
+        }
         val x = ((event.x - left) / scale).coerceIn(0f, (src.width - 1).toFloat())
         val y = ((event.y - top) / scale).coerceIn(0f, (src.height - 1).toFloat())
         val mx = x * (map.width - 1) / max(1, src.width - 1).toFloat()
