@@ -99,15 +99,29 @@ class ParallaxWallpaperService : WallpaperService() {
         ): FloatArray {
             val vertices = FloatArray((meshColumns + 1) * (meshRows + 1) * 2)
             var out = 0
-            val depthScale = 1.0f * strength
+            // Keep depth motion subtle; dx/dy already include the user strength.
+            // Multiplying by strength again made painted regions deform too aggressively.
+            val depthScale = 0.30f
             for (row in 0..meshRows) {
                 val v = row.toFloat() / meshRows
                 val sy = (v * (depth.height - 1)).toInt().coerceIn(0, depth.height - 1)
                 for (col in 0..meshColumns) {
                     val u = col.toFloat() / meshColumns
                     val sx = (u * (depth.width - 1)).toInt().coerceIn(0, depth.width - 1)
-                    val pixel = depth.getPixel(sx, sy)
-                    val gray = (Color.red(pixel) * 0.299f + Color.green(pixel) * 0.587f + Color.blue(pixel) * 0.114f) / 255f
+                    // Average a small neighborhood so sharp brush edges do not create
+                    // abrupt mesh jumps, folds, and tearing during tilt.
+                    var total = 0f
+                    var samples = 0
+                    for (oy in -2..2) {
+                        val py = (sy + oy).coerceIn(0, depth.height - 1)
+                        for (ox in -2..2) {
+                            val px = (sx + ox).coerceIn(0, depth.width - 1)
+                            val pixel = depth.getPixel(px, py)
+                            total += (Color.red(pixel) * 0.299f + Color.green(pixel) * 0.587f + Color.blue(pixel) * 0.114f) / 255f
+                            samples++
+                        }
+                    }
+                    val gray = total / samples
                     val offset = (gray - 0.5f) * 2f
                     vertices[out++] = image.width * u + (dx / max(1f, dst.width()) * image.width) * offset * depthScale
                     vertices[out++] = image.height * v + (dy / max(1f, dst.height()) * image.height) * offset * depthScale
