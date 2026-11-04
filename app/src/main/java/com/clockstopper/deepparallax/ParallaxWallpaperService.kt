@@ -35,8 +35,8 @@ class ParallaxWallpaperService : WallpaperService() {
         private var depthBitmap: Bitmap? = null
         private var loadedUri: String? = null
         private var loadedDepthUri: String? = null
-        private val meshColumns = 24
-        private val meshRows = 36
+        private val meshColumns = 48
+        private val meshRows = 72
         private var lastSensorDrawMs = 0L
 
         override fun onVisibilityChanged(visible: Boolean) {
@@ -171,12 +171,12 @@ class ParallaxWallpaperService : WallpaperService() {
                 val dst = RectF((w - drawW) / 2f, (h - drawH) / 2f, (w + drawW) / 2f, (h + drawH) / 2f)
                 val shifted = RectF(dst.left + dx, dst.top + dy, dst.right + dx, dst.bottom + dy)
 
-                // Always draw a normal image first. That guarantees the preview cannot
-                // become a black screen just because a depth mesh fails or is malformed.
-                drawPlain(canvas, image, shifted)
-
                 val depth = depthBitmap
                 if (depth != null && !depth.isRecycled && strength > 0f) {
+                    // Draw the image exactly once through the depth mesh. Drawing a
+                    // stationary/plain copy underneath creates doubled edges and makes
+                    // painted depth regions look like they are stuck to the screen.
+                    var meshDrawn = false
                     try {
                         val vertices = buildDepthMesh(image, depth, shifted, dx, dy, strength)
                         canvas.save()
@@ -184,9 +184,13 @@ class ParallaxWallpaperService : WallpaperService() {
                         canvas.scale(scale, scale)
                         canvas.drawBitmapMesh(image, meshColumns, meshRows, vertices, 0, null, 0, paint)
                         canvas.restore()
+                        meshDrawn = true
                     } catch (_: Throwable) {
-                        // The normal image is already on the surface; keep it.
+                        try { canvas.restore() } catch (_: Throwable) { }
                     }
+                    if (!meshDrawn) drawPlain(canvas, image, shifted)
+                } else {
+                    drawPlain(canvas, image, shifted)
                 }
 
                 paint.color = 0x35FFFFFF
