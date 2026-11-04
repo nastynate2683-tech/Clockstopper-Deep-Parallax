@@ -195,14 +195,6 @@ class ParallaxWallpaperService : WallpaperService() {
                 } else {
                     drawPlain(canvas, image, shifted)
                 }
-
-                paint.color = 0x35FFFFFF
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = 2f
-                val inset = min(w, h) * 0.08f
-                canvas.drawRoundRect(RectF(inset + dx * 1.35f, inset + dy * 1.35f, w - inset + dx * 1.35f, h - inset + dy * 1.35f), 28f, 28f, paint)
-                paint.style = Paint.Style.FILL
-                paint.color = Color.WHITE
             } catch (_: Throwable) {
                 // If anything unexpected happens, make one final attempt to show the
                 // normal wallpaper instead of leaving a black surface.
